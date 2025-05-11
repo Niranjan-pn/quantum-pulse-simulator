@@ -4,7 +4,9 @@ This library provides tools for simulating the dynamics of quantum systems, part
 
 ## Installation
 
-To install the library, use the provided `setup.py` script:
+To install the library, 
+  - Clone the library using git clone
+  - use the provided `setup.py` script to install by running:
 
 ```bash
 python setup.py install
