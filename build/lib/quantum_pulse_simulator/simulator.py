@@ -5,7 +5,7 @@ import qutip as qt
 from scipy.constants import hbar
 from tqdm import tqdm
 from matplotlib.cm import get_cmap
-qt.CoreOptions.default_dtype = "jax"
+
 class QutipPulseSimulator:
     """
     Simulator for quantum systems using QuTiP, supporting pulse-driven dynamics,

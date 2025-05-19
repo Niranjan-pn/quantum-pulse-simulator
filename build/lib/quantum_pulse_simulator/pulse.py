@@ -1,6 +1,6 @@
 import numpy as np
 import qutip as qt
-qt.CoreOptions.default_dtype = "jax"
+
 class PulseSequence:
     """Unified interface for creating and managing quantum pulse sequences."""
 

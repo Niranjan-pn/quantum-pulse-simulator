@@ -15,9 +15,8 @@ import numpy as np
 import qutip as qt
 from quantum_pulse_simulator.simulator import QutipPulseSimulator
 
-from quantum_pulse_simulator.pulse import flattop_gaussian_shape, TwoPhotonDrivePulse, PulseChain
-from quantum_pulse_simulator.devices import KerrOscillator
-
+from quantum_pulse_simulator.pulse import PulseSequence
+from quantum_pulse_simulator.devices import QuantumSystem
 # =========================
 # System Parameters
 # =========================
@@ -39,46 +38,28 @@ def main():
     e2_drive = ALPHA_TARGET**2 * KERR_COEFF  # Two-photon drive strength
     
     # Initialize Kerr oscillator
-    kerr_osc = KerrOscillator(
+    kerr_osc = QuantumSystem(
         num_fock=NUM_FOCK,
         omega=OSC_FREQ,
-        Kerr=KERR_COEFF,
-        state=qt.basis(NUM_FOCK, 1)
+        name="Kerr Oscillator"
     )
 
-    # Create pulse envelope
-    pulse_shape = flattop_gaussian_shape(PULSE_DURATION, RISE_TIME)
+    kerr_osc.add_kerr_oscillator(KERR_COEFF)
 
-    # Configure two-photon drive pulse
-    squeezing_pulse = TwoPhotonDrivePulse(
+    # Pulse sequence setup
+    ps = PulseSequence(systems=[kerr_osc])
+    ps.add_two_photon_drive(
         duration=PULSE_DURATION,
         strength=e2_drive,
-        sys=kerr_osc,
-        shape=pulse_shape,
-        phase=0.0
+        system=kerr_osc,
+        shape=ps.flattop_gaussian_shape(PULSE_DURATION, RISE_TIME),
+        phase=0.0,
+        name="TwoPhotonDrive"
     )
 
-    squeezing_pulse2 = TwoPhotonDrivePulse(
-        duration=PULSE_DURATION,
-        strength=e2_drive,
-        theta=np.pi,
-        sys=kerr_osc,
-        shape=pulse_shape,
-        phase=np.pi
-    )
-
-
-    # Build pulse sequence
-    pulse_chain = PulseChain(system=kerr_osc)
-    pulse_chain.add_pulse(squeezing_pulse)
-    pulse_chain.add_empty_pulse(duration=100e-9)  # Add waiting period
-
-    pulse_chain2 = PulseChain(system=kerr_osc)
-    pulse_chain2.add_pulse(squeezing_pulse2)
-    pulse_chain2.add_empty_pulse(duration=100e-9)  # Add waiting period
 
     SYSTEMS = [kerr_osc]
-    PULSECHAINS = [pulse_chain,pulse_chain2]
+    PULSECHAINS = [ps]
     # Run simulation
     sim = QutipPulseSimulator(
         systems=SYSTEMS,

@@ -23,7 +23,7 @@ class QuantumSystem:
         self.num_fock = num_fock
         self.omega = omega
         self.a = qt.destroy(num_fock)
-        self.state = qt.basis(num_fock, 0, dtype="jax") if state is None else state
+        self.state = qt.basis(num_fock, 0) if state is None else state
         self.name = name
         self.add_harmonic_oscillator()  # Initialize with harmonic oscillator term
 

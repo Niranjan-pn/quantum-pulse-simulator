@@ -1,0 +1,60 @@
+Requirement already satisfied: qutip in c:\users\nirpit\appdata\local\packages\pythonsoftwarefoundation.python.3.11_qbz5n2kfra8p0\localcache\local-packages\python311\site-packages (5.0.4)
+Collecting qutip-jax
+  Downloading qutip_jax-0.1.0-py3-none-any.whl.metadata (2.7 kB)
+Requirement already satisfied: numpy>=1.22 in c:\users\nirpit\appdata\local\packages\pythonsoftwarefoundation.python.3.11_qbz5n2kfra8p0\localcache\local-packages\python311\site-packages (from qutip) (2.1.2)
+Requirement already satisfied: scipy>=1.9 in c:\users\nirpit\appdata\local\packages\pythonsoftwarefoundation.python.3.11_qbz5n2kfra8p0\localcache\local-packages\python311\site-packages (from qutip) (1.14.1)
+Requirement already satisfied: packaging in c:\users\nirpit\appdata\local\packages\pythonsoftwarefoundation.python.3.11_qbz5n2kfra8p0\localcache\local-packages\python311\site-packages (from qutip) (24.0)
+Collecting qutip
+  Downloading qutip-5.1.1-cp311-cp311-win_amd64.whl.metadata (9.4 kB)
+Collecting jax (from qutip-jax)
+  Downloading jax-0.6.0-py3-none-any.whl.metadata (22 kB)
+Collecting diffrax (from qutip-jax)
+  Downloading diffrax-0.7.0-py3-none-any.whl.metadata (17 kB)
+Collecting equinox (from qutip-jax)
+  Downloading equinox-0.12.2-py3-none-any.whl.metadata (18 kB)
+Collecting jaxtyping>=0.2.24 (from diffrax->qutip-jax)
+  Downloading jaxtyping-0.3.2-py3-none-any.whl.metadata (7.0 kB)
+Collecting lineax>=0.0.5 (from diffrax->qutip-jax)
+  Downloading lineax-0.0.8-py3-none-any.whl.metadata (18 kB)
+Collecting optimistix>=0.0.10 (from diffrax->qutip-jax)
+  Downloading optimistix-0.0.10-py3-none-any.whl.metadata (17 kB)
+Collecting typing-extensions>=4.5.0 (from diffrax->qutip-jax)
+  Downloading typing_extensions-4.13.2-py3-none-any.whl.metadata (3.0 kB)
+Collecting wadler-lindig>=0.1.1 (from diffrax->qutip-jax)
+  Downloading wadler_lindig-0.1.6-py3-none-any.whl.metadata (17 kB)
+Collecting jaxlib<=0.6.0,>=0.6.0 (from jax->qutip-jax)
+  Downloading jaxlib-0.6.0-cp311-cp311-win_amd64.whl.metadata (1.2 kB)
+Collecting ml_dtypes>=0.5.0 (from jax->qutip-jax)
+  Downloading ml_dtypes-0.5.1-cp311-cp311-win_amd64.whl.metadata (22 kB)
+Collecting opt_einsum (from jax->qutip-jax)
+  Downloading opt_einsum-3.4.0-py3-none-any.whl.metadata (6.3 kB)
+Downloading qutip_jax-0.1.0-py3-none-any.whl (27 kB)
+Downloading qutip-5.1.1-cp311-cp311-win_amd64.whl (9.9 MB)
+   ---------------------------------------- 9.9/9.9 MB 35.0 MB/s eta 0:00:00
+Downloading diffrax-0.7.0-py3-none-any.whl (193 kB)
+   ---------------------------------------- 193.2/193.2 kB ? eta 0:00:00
+Downloading equinox-0.12.2-py3-none-any.whl (177 kB)
+   ---------------------------------------- 177.2/177.2 kB ? eta 0:00:00
+Downloading jax-0.6.0-py3-none-any.whl (2.3 MB)
+   ---------------------------------------- 2.3/2.3 MB 75.1 MB/s eta 0:00:00
+Downloading jaxlib-0.6.0-cp311-cp311-win_amd64.whl (56.4 MB)
+   ---------------------------------------- 56.4/56.4 MB 38.4 MB/s eta 0:00:00
+Downloading jaxtyping-0.3.2-py3-none-any.whl (55 kB)
+   ---------------------------------------- 55.4/55.4 kB 3.0 MB/s eta 0:00:00
+Downloading lineax-0.0.8-py3-none-any.whl (68 kB)
+   ---------------------------------------- 68.0/68.0 kB 3.6 MB/s eta 0:00:00
+Downloading ml_dtypes-0.5.1-cp311-cp311-win_amd64.whl (209 kB)
+   ---------------------------------------- 209.7/209.7 kB 3.2 MB/s eta 0:00:00
+Downloading optimistix-0.0.10-py3-none-any.whl (84 kB)
+   ---------------------------------------- 84.3/84.3 kB 4.9 MB/s eta 0:00:00
+Downloading typing_extensions-4.13.2-py3-none-any.whl (45 kB)
+   ---------------------------------------- 45.8/45.8 kB 2.2 MB/s eta 0:00:00
+Downloading wadler_lindig-0.1.6-py3-none-any.whl (20 kB)
+Downloading opt_einsum-3.4.0-py3-none-any.whl (71 kB)
+   ---------------------------------------- 71.9/71.9 kB 4.1 MB/s eta 0:00:00
+Installing collected packages: wadler-lindig, typing-extensions, opt_einsum, ml_dtypes, qutip, jaxtyping, jaxlib, jax, equinox, lineax, optimistix, diffrax, qutip-jax
+  Attempting uninstall: qutip
+    Found existing installation: qutip 5.0.4
+    Uninstalling qutip-5.0.4:
+      Successfully uninstalled qutip-5.0.4
+Successfully installed diffrax-0.7.0 equinox-0.12.2 jax-0.6.0 jaxlib-0.6.0 jaxtyping-0.3.2 lineax-0.0.8 ml_dtypes-0.5.1 opt_einsum-3.4.0 optimistix-0.0.10 qutip-5.1.1 qutip-jax-0.1.0 typing-extensions-4.13.2 wadler-lindig-0.1.6
