@@ -43,7 +43,7 @@ def main():
         num_fock=NUM_FOCK,
         omega=OSC_FREQ,
         Kerr=KERR_COEFF,
-        state=qt.basis(NUM_FOCK, 0)
+        state=qt.basis(NUM_FOCK, 1)
     )
 
     # Create pulse envelope
@@ -58,23 +58,39 @@ def main():
         phase=0.0
     )
 
+    squeezing_pulse2 = TwoPhotonDrivePulse(
+        duration=PULSE_DURATION,
+        strength=e2_drive,
+        theta=np.pi,
+        sys=kerr_osc,
+        shape=pulse_shape,
+        phase=np.pi
+    )
+
+
     # Build pulse sequence
     pulse_chain = PulseChain(system=kerr_osc)
     pulse_chain.add_pulse(squeezing_pulse)
     pulse_chain.add_empty_pulse(duration=100e-9)  # Add waiting period
 
+    pulse_chain2 = PulseChain(system=kerr_osc)
+    pulse_chain2.add_pulse(squeezing_pulse2)
+    pulse_chain2.add_empty_pulse(duration=100e-9)  # Add waiting period
+
+    SYSTEMS = [kerr_osc]
+    PULSECHAINS = [pulse_chain,pulse_chain2]
     # Run simulation
     sim = QutipPulseSimulator(
-        systems=[kerr_osc],
-        pulse_chains=[pulse_chain]
+        systems=SYSTEMS,
+        pulse_chains=PULSECHAINS,
     )
     sim.simulate()
 
     # Visualize results
     sim.animate_wigner(
-        system_index=[0],
+        systems=SYSTEMS,
         number_of_frames=200,
-        speed=5
+        fps=25,
     )
 
 if __name__ == "__main__":
