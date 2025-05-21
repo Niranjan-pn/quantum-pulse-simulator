@@ -60,9 +60,16 @@ class PulseSequence:
 
     def add_two_photon_drive(self, duration, strength, system, tone=None, shape=None, phase=0.0, name="TwoPhotonDrive"):
         a = system.a
-        op = a**2 + a.dag()**2
+        op = np.exp(1j*phase) * a.dag()**2 + np.exp(-1j*phase) * a**2
         if tone is None:
             tone = 2 * system.omega
+        self._add_pulse(duration, strength, op, tone, shape, False, 0, name)
+
+    def add_four_photon_drive(self, duration, strength, system, tone=None, shape=None, phase=0.0, name="FourPhotonDrive"):
+        a = system.a
+        op = (a.dag()**4 + a**4) * np.exp(1j*phase)
+        if tone is None:
+            tone = 4 * system.omega
         self._add_pulse(duration, strength, op, tone, shape, False, phase, name)
 
     def add_trisqz(self, duration, strength, system, g3ac=None, tone=None, shape=None, phase=0.0, name="Trisqz"):
@@ -114,6 +121,29 @@ class PulseSequence:
 
         if tone is None:
             tone = abs(system1.omega + system2.omega - 2 * system3.omega)
+        self._add_pulse(duration, strength, hamiltonian, tone, shape, True, phase, name)
+
+    def add_two_photon_exchange(self, duration, strength, system1, system2, tone=None, shape=None, phase=0.0, name="TwoPhotonExchange"):
+        """ Interaction a1 a2_dag**2 + a1_dag a2**2 """
+
+        # a1 a2_dag**2
+        all_systems = self.systems
+        a1 = system1.a
+        a2 = system2.a
+        op_list1 = [qt.identity(s.num_fock) for s in all_systems]
+        op_list1[all_systems.index(system1)] = a1
+        op_list1[all_systems.index(system2)] = a2.dag()**2
+
+        # a1_dag a2**2
+        op_list2 = [qt.identity(s.num_fock) for s in all_systems]
+        op_list2[all_systems.index(system1)] = a1.dag()
+        op_list2[all_systems.index(system2)] = a2**2
+
+        hamiltonian = qt.tensor(*op_list1) + qt.tensor(*op_list2)
+
+        if tone is None:
+            tone = abs( 2 * system2.omega - system1.omega)
+
         self._add_pulse(duration, strength, hamiltonian, tone, shape, True, phase, name)
 
     def add_waiting(self, duration, name="Waiting"):

@@ -6,6 +6,7 @@ from scipy.constants import hbar
 from tqdm import tqdm
 from matplotlib.cm import get_cmap
 qt.CoreOptions.default_dtype = "jax"
+import os
 class QutipPulseSimulator:
     """
     Simulator for quantum systems using QuTiP, supporting pulse-driven dynamics,
@@ -38,7 +39,7 @@ class QutipPulseSimulator:
         if max_tone == 0:
             max_tone = max([s.omega for s in self.systems])
         min_period = 1.0 / max_tone
-        dt = min_period / 20  # 20 points per period
+        dt = min_period / 1  # 3 points per period
 
         max_duration = 0
         for pc in self.pulse_chains:
@@ -122,21 +123,80 @@ class QutipPulseSimulator:
 
         return [H0] + H_td_list
 
-    def simulate(self):
+    def simulate(self, batch_size=1000, save_dir=".", save_prefix="batch_result"):
         """
-        Run the time evolution of the system using QuTiP's mesolve and store the result.
+        Run time evolution in batches to avoid memory errors.
+        Each batch result is saved to disk in the specified directory with the given prefix.
+        Args:
+            batch_size (int): Number of time points per batch.
+            save_dir (str): Path to the folder where results are saved.
+            save_prefix (str): Prefix for saved batch files.
         """
-        H = self._build_total_hamiltonian()
-        self.result = qt.mesolve(
-            H,
-            self.initial_state,
-            self.tlist,
-            c_ops=[],
-            args=None,
-            options={"progress_bar": "tqdm",},
-        )
-        return self.result
+        # Ensure save_dir exists
+        os.makedirs(save_dir, exist_ok=True)
 
+        H = self._build_total_hamiltonian()
+        n_times = len(self.tlist)
+        batch_starts = list(range(0, n_times-1, batch_size))
+        initial_state = self.initial_state
+        batch_files = []
+        self.batch_size = int(batch_size)  # set in __init__ or simulate()
+
+        print(f"Simulating in {len(batch_starts)} batches of up to {batch_size} time points each...")
+
+        for i, start in enumerate(tqdm(batch_starts, desc="Batches")):
+            end = min(start + batch_size, n_times-1)
+            t_batch = self.tlist[start:end+1]  # include endpoint
+            result = qt.mesolve(
+                H,
+                initial_state,
+                t_batch,
+                c_ops=[],
+                args=None,
+                options={"progress_bar": None, "atol": 1e-6, "rtol": 1e-6},
+            )
+            filename = f"{save_prefix}_{i}"
+            full_path = os.path.join(save_dir, filename)
+            qt.qsave(result, full_path)
+            batch_files.append(full_path)
+            initial_state = result.states[-1]  # carry last state to next batch
+
+        print(f"All {len(batch_files)} batches completed and saved to disk in '{save_dir}'.")
+        self.result_files = batch_files  # Store for later loading
+        return batch_files
+
+    def load_full_result(self):
+        """
+        Load and concatenate all batch results into a single result object.
+        """
+        all_states = []
+        all_times = []
+        for filename in self.result_files:
+            result = qt.qload(filename)
+            # Avoid duplicate time points at batch boundaries
+            if all_times and result.times[0] == all_times[-1]:
+                all_states.extend(result.states[1:])
+                all_times.extend(result.times[1:])
+            else:
+                all_states.extend(result.states)
+                all_times.extend(result.times)
+        # Create a dummy result object for compatibility
+        class DummyResult:
+            pass
+        full_result = DummyResult()
+        full_result.states = all_states
+        full_result.times = np.array(all_times)
+        self.result = full_result
+        print("Full result loaded and concatenated from disk.")
+        return full_result
+
+    def get_state_at_frame(self, frame):
+        batch_idx = frame // self.batch_size
+        state_idx = frame % self.batch_size
+        result = qt.qload(self.result_files[batch_idx])
+        return result.states[state_idx]
+
+    
     def plot_wigner(self, time=-1, system_index=[0]):
         """
         Plot the Wigner function for the specified systems at a given simulation time.
@@ -158,10 +218,9 @@ class QutipPulseSimulator:
         plt.tight_layout()
         plt.show()
 
-    def animate_wigner(self, systems=None, number_of_frames=20, fps=100, save_path=None, writer='ffmpeg'):
+    def animate_wigner(self, systems=None, number_of_frames=20, fps=100, save_path=None, writer='Pillow'):
         if systems is None:
             raise ValueError("No systems provided for animation. Please specify a list of system objects.")
-
         n_systems = len(systems)
         xvec = np.linspace(-5, 5, 100)
         total_frames = len(self.tlist)
@@ -169,23 +228,22 @@ class QutipPulseSimulator:
         selected_frames = np.arange(0, total_frames, frame_step)
         tlist_ns = self.tlist * 1e9  # ns for display
 
-        # Create a color map for pulse chains
+        # Prepare color map for pulse chains
         cmap = get_cmap('tab10')
         pulse_chain_colors = {pc_idx: cmap(pc_idx % 10) for pc_idx, pc in enumerate(self.pulse_chains) if pc is not None}
 
-        # Precompute Wigner functions and global clim
-        wigner_list = []
+        # --- Progress bar for global_clim computation ---
         global_clim = 0
-        for frame in tqdm(selected_frames, desc="Computing Wigner frames"):
-            rho = self.result.states[frame]
-            wigner_frames = []
+        sample_idxs = selected_frames[::max(1, len(selected_frames)//5)]
+        for frame in tqdm(sample_idxs, desc="Computing Wigner (global_clim)"):
+            rho =  self.get_state_at_frame(frame)
             for sys in systems:
                 sys_idx = self.systems.index(sys)
                 rho_reduced = qt.ptrace(rho, sys_idx)
                 W = qt.wigner(rho_reduced, xvec, xvec)
-                wigner_frames.append(W)
                 global_clim = max(global_clim, np.max(np.abs(W)))
-            wigner_list.append(wigner_frames)
+        if global_clim == 0:
+            global_clim = 0.2  # fallback
 
         # Prepare the figure
         n_rows = 2
@@ -204,12 +262,14 @@ class QutipPulseSimulator:
 
         # --- Initialize Wigner plots ---
         for i in range(n_systems):
-            im = axes[0, i].imshow(wigner_list[0][i], extent=[-5, 5, -5, 5],
+            # Dummy initial data
+            im = axes[0, i].imshow(np.zeros((len(xvec), len(xvec))), extent=[-5, 5, -5, 5],
                                 aspect='auto', origin='lower', cmap='RdBu',
                                 vmin=-global_clim, vmax=global_clim)
             axes[0, i].set_title(f"{getattr(systems[i], 'name', i)}")
             axes[0, i].set_xlabel('x')
             axes[0, i].set_ylabel('p')
+            axes[0, i].set_aspect('equal', adjustable='box')
             ims.append(im)
 
         # --- Plot single-system pulses (including waiting pulses) ---
@@ -285,8 +345,8 @@ class QutipPulseSimulator:
                                 pulse_name = pulse.get('name', f'multi-pulse_{pulse_idx}')
                                 y_pos = axes[2, i].get_ylim()[1] * 0.9 if axes[2, i].get_ylim()[1] > 0 else 0.9
                                 axes[2, i].text(pulse_start_ns, y_pos, pulse_name,
-                                            rotation=90, verticalalignment='top',
-                                            color="black", fontsize=8)
+                                                rotation=90, verticalalignment='top',
+                                                color="black", fontsize=8)
                                 t_pulse = tlist_ns[idxs]
                                 rel_times = [(t - t_start * 1e9) / 1e9 for t in t_pulse]
                                 envelope = np.array([pulse["shape"](t) if pulse["shape"] else 1.0 for t in rel_times])
@@ -307,9 +367,14 @@ class QutipPulseSimulator:
         fig.tight_layout()
 
         def update(frame_idx):
-            t_ns = tlist_ns[selected_frames[frame_idx]]
+            frame = selected_frames[frame_idx]
+            t_ns = tlist_ns[frame]
+            rho = self.get_state_at_frame(frame)
             for i, sys in enumerate(systems):
-                ims[i].set_data(wigner_list[frame_idx][i])
+                sys_idx = self.systems.index(sys)
+                rho_reduced = qt.ptrace(rho, sys_idx)
+                W = qt.wigner(rho_reduced, xvec, xvec)
+                ims[i].set_data(W)
                 axes[0, i].set_title(f"{getattr(sys, 'name', f'System {i}')}")
                 if vlines[i] is not None:
                     vlines[i].set_xdata([t_ns, t_ns])
@@ -326,12 +391,18 @@ class QutipPulseSimulator:
             cache_frame_data=False
         )
 
+        # --- Progress bar for saving animation ---
         if save_path is not None:
-            ani.save(save_path, writer=writer)
+            with tqdm(total=len(selected_frames), desc="Saving Wigner Animation") as pbar:
+                def progress_callback(frame, total_frames):
+                    pbar.n = frame + 1
+                    pbar.refresh()
+                ani.save(save_path, writer=writer, progress_callback=progress_callback)
             print(f"Animation saved to {save_path}")
 
         plt.show()
         return ani
+
 
     def plot_fock_expectations(self, system_indices, fock_states):
         """

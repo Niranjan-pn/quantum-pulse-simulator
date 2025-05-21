@@ -1,12 +1,59 @@
-# Quantum System and Pulse Simulation Library
+# Quantum Pulse Simulation Framework
 
-This library provides tools for simulating the dynamics of quantum systems, particularly those driven by various pulse sequences. It leverages the QuTiP library for quantum mechanics calculations and includes functionality for defining quantum systems, creating complex pulse sequences, and visualizing simulation results.
+A Python framework for simulating quantum systems with pulse-driven dynamics using QuTiP, supporting multi-system interactions, batch processing, and advanced visualization.
 
-## Installation
+## Key Features
 
-To install the library, 
-  - Clone the library using git clone
-  - use the provided `setup.py` script to install by running:
+### Core Components
+- **QutipPulseSimulator**: Manages time evolution of multi-system quantum states
+  - Batch processing for memory-efficient simulations
+  - Automatic time step calculation based on pulse frequencies
+  - Tensor product handling for multi-system interactions
+  - State persistence with disk-based batch storage
 
-```bash
-python setup.py install
+### Pulse Sequence Construction
+- **PulseSequence**: Unified interface for pulse sequence generation
+  - Built-in pulse shapes:
+    - Square, Sin², Gaussian, Flattop Gaussian
+  - Standard interactions:
+    ```
+    .add_drive()         # (a + a†)^n drive
+    .add_two_photon_drive()
+    .add_beamsplitter()
+    .add_two_photon_exchange()
+    .add_second_order_beamsplitter()
+    .add_trisqz()        # Cubic nonlinearity
+    .add_waiting()       # Idle period
+    ```
+  - Custom Hamiltonian support
+  - Automatic tone frequency calculation
+
+### System Configuration
+- **QuantumSystem**: Flexible quantum system definition
+  - Hamiltonian composition:
+    ```
+    .add_harmonic_oscillator()
+    .add_kerr_oscillator(Kerr)
+    .add_four_wave_mixer(g4)
+    .add_drive({power: strength})  # Polynomial drives
+    .add_custom_hamiltonian()
+    ```
+
+### Visualization Tools
+- **Wigner Function Analysis**
+  - Static plots (`plot_wigner()`)
+  - Animated temporal evolution (`animate_wigner()`)
+  - Automatic color scale normalization
+- **State Population Tracking**
+  - Fock state probabilities (`plot_fock_expectations()`)
+- **Pulse Sequence Visualization**
+  - Interactive pulse timeline plots
+  - Multi-system pulse coordination display
+
+
+## Dependencies
+- QuTiP 5+
+- NumPy
+- Matplotlib
+- JAX (optional for GPU acceleration)
+- tqdm

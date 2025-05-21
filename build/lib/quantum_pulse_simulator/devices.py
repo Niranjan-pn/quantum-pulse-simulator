@@ -35,9 +35,10 @@ class QuantumSystem:
         """Adds Kerr nonlinearity: -Kerr(a†a†aa)"""
         self.H0 -= Kerr * (self.a.dag()**2 * self.a**2)
 
+
     def add_four_wave_mixer(self, g4):
         """Adds four-wave mixing term: g4(a + a†)^4"""
-        self.H0 += g4 * (self.a.dag() + self.a)**4
+        self.H0 -= g4 * (self.a.dag()**4 * self.a**4)
 
     def add_drive(self, drive_strengths):
         """

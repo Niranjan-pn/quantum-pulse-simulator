@@ -27,13 +27,13 @@ qt.CoreOptions.default_dtype = "jax"
 KERR_COEFF = 6.7e6 * 2 * np.pi  # Kerr nonlinearity (rad/s)
 KERR_OSC_FREQ = 6e9 * 2 * np.pi  # Oscillator frequency (rad/s)
 OSC_FREQ = 5e9 * 2 * np.pi  # Oscillator frequency (rad/s)
-NUM_FOCK = 15  # Hilbert space dimension
+NUM_FOCK = 10  # Hilbert space dimension
 ALPHA_TARGET = 2.6  # Target coherent state amplitude
 
 # =========================
 # Pulse Parameters 
 # =========================
-PULSE_DURATION = 1200e-9 #1500E-9  # Total pulse duration (s)
+PULSE_DURATION = 2000e-9 #1500E-9  # Total pulse duration (s)
 RISE_TIME = 320e-9  # Pulse rise/fall time (s)
 PULSE_DURATION_BS = PULSE_DURATION-RISE_TIME  # Total pulse duration (s)
 RISE_TIME_BS = 320e-9  # Pulse rise/fall time (s)
@@ -95,28 +95,59 @@ def main():
         name="TwoPhotonDrive"
     )
 
-    # Beam splitter pulse sequence
+    # # Beam splitter pulse sequence
+    # ps_bs_1 = PulseSequence(systems=SYSTEMS)
+    # ps_bs_1.add_waiting(
+    #     duration=RISE_TIME,
+    #     name="Waiting",
+    # )
+    # ps_bs_1.add_second_order_beamsplitter(
+    #     duration=PULSE_DURATION_BS,
+    #     strength=KERR_COEFF/10,
+    #     system1=Kerr_osc_1,
+    #     system2=Kerr_osc_2,
+    #     system3=ho,
+    #     shape=ps_bs_1.flattop_gaussian_shape(PULSE_DURATION_BS, RISE_TIME_BS,fall=False),
+    #     phase=0.0,
+    #     name="K1_K2_HO_BS",
+    # )
+
     ps_bs_1 = PulseSequence(systems=SYSTEMS)
     ps_bs_1.add_waiting(
         duration=RISE_TIME,
         name="Waiting",
     )
-    ps_bs_1.add_second_order_beamsplitter(
+    #add first beam splitter
+
+    ps_bs_1.add_beamsplitter(
         duration=PULSE_DURATION_BS,
         strength=KERR_COEFF/10,
         system1=Kerr_osc_1,
-        system2=Kerr_osc_2,
-        system3=ho,
+        system2=ho,
         shape=ps_bs_1.flattop_gaussian_shape(PULSE_DURATION_BS, RISE_TIME_BS,fall=False),
         phase=0.0,
-        name="K1_K2_HO_BS",
+        name="K1_HO_BS",
     )
 
-
+    #add second beam splitter
+    ps_bs_2 = PulseSequence(systems=SYSTEMS)
+    ps_bs_2.add_waiting(
+        duration=RISE_TIME,
+        name="Waiting",
+    )
+    ps_bs_2.add_beamsplitter(
+        duration=PULSE_DURATION_BS,
+        strength=KERR_COEFF/10,
+        system1=Kerr_osc_2,
+        system2=ho,
+        shape=ps_bs_2.flattop_gaussian_shape(PULSE_DURATION_BS, RISE_TIME_BS,fall=False),
+        phase=0.0,
+        name="K2_HO_BS",
+    )
 
     # Combine all systems into a list
 
-    PULSE_CHAINS = [ps_1,ps_2,ps_bs_1]
+    PULSE_CHAINS = [ps_1,ps_2,ps_bs_1,ps_bs_2]
 
     sim = QutipPulseSimulator(
         systems=SYSTEMS,
@@ -127,14 +158,17 @@ def main():
     
     # sim.plot_pulse_sequence()
     # Run simulation
-    sim.simulate()
+    sim.simulate(save_dir=r"D:\PhD_All_Code\quantum-pulse-simulator\examples\results\four_component_bs_cat",
+                 batch_size=1000,
+                 save_prefix="4_component_cat_bs",)
+
 
     # Visualize results
     sim.animate_wigner(
         systems=SYSTEMS,
         number_of_frames=200,
         fps=25,
-        save_path="4_component_cat.gif",
+        save_path=r"D:\PhD_All_Code\quantum-pulse-simulator\examples\results\four_component_bs_cat\four_component_cat_linear_bs.gif",
     )
 
 if __name__ == "__main__":
