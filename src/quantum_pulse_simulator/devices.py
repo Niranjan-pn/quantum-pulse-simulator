@@ -40,14 +40,14 @@ class QuantumSystem:
         """Adds four-wave mixing term: g4(a + a†)^4"""
         self.H0 -= g4 * (self.a.dag()**4 * self.a**4)
 
-    def add_drive(self, drive_strengths):
+    def add_static_nonlinearities(self, strengths):
         """
-        Adds polynomial drive terms: Σ g_i(a + a†)^i
+        Adds polynomial terms: Σ g_i(a + a†)^i
         
         Args:
-            drive_strengths (dict): {power: strength} pairs
+            strengths (dict): {power: strength} pairs
         """
-        for power, strength in drive_strengths.items():
+        for power, strength in strengths.items():
             self.H0 += strength * (self.a.dag() + self.a)**power
 
     def add_custom_hamiltonian(self, custom_H):
