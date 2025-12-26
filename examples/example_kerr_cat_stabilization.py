@@ -22,7 +22,7 @@ from quantum_pulse_simulator.devices import QuantumSystem
 # =========================
 KERR_COEFF = 6.7e6 * 2 * np.pi  # Kerr nonlinearity (rad/s)
 OSC_FREQ = 6e9 * 2 * np.pi  # Oscillator frequency (rad/s)
-NUM_FOCK = 50  # Hilbert space dimension
+NUM_FOCK = 10  # Hilbert space dimension
 ALPHA_TARGET = 2.6  # Target coherent state amplitude
 
 # =========================
@@ -72,6 +72,7 @@ def main():
         systems=SYSTEMS,
         number_of_frames=200,
         fps=25,
+        save=False
     )
 
 if __name__ == "__main__":

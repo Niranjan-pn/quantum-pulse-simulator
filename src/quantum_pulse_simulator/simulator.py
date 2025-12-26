@@ -123,17 +123,33 @@ class QutipPulseSimulator:
 
         return [H0] + H_td_list
 
-    def simulate(self, batch_size=1000, save_dir=".", save_prefix="batch_result"):
+    def simulate(self, batch_size=1000, save_dir=".", save_prefix="batch_result", simulation_name="sim", store_batch_file=False):
         """
         Run time evolution in batches to avoid memory errors.
         Each batch result is saved to disk in the specified directory with the given prefix.
         Args:
             batch_size (int): Number of time points per batch.
-            save_dir (str): Path to the folder where results are saved.
+            save_dir (str, optional): Base path for results. Defaults to current directory ("."). 
+                                      But if simulation_name is provided, it will create a folder inside lib/.
             save_prefix (str): Prefix for saved batch files.
+            simulation_name (str): Name of the simulation, used for folder naming.
+            store_batch_file (bool): If True, keep batch files. If False, delete them after loading.
         """
-        # Ensure save_dir exists
-        os.makedirs(save_dir, exist_ok=True)
+        from datetime import datetime
+        import shutil
+
+        # Construct result directory: lib/{simulation_name}_{date}_{time}
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        # If the user passed default save_dir=".", we override it to use the new structure
+        # Otherwise, if they explicitly passed something else, we respect it but might append the subfolder?
+        # Based on request: "change it to a temp folder inside lib"
+        if save_dir == ".":
+            result_dir = os.path.join("lib", f"{simulation_name}_{timestamp}")
+        else:
+            result_dir = os.path.join(save_dir, f"{simulation_name}_{timestamp}")
+
+        os.makedirs(result_dir, exist_ok=True)
+        self.save_dir = result_dir # Store for plotting functions
 
         H = self._build_total_hamiltonian()
         n_times = len(self.tlist)
@@ -143,6 +159,7 @@ class QutipPulseSimulator:
         self.batch_size = int(batch_size)  # set in __init__ or simulate()
 
         print(f"Simulating in {len(batch_starts)} batches of up to {batch_size} time points each...")
+        print(f"Results will be stored in: {result_dir}")
 
         for i, start in enumerate(tqdm(batch_starts, desc="Batches")):
             end = min(start + batch_size, n_times-1)
@@ -156,13 +173,37 @@ class QutipPulseSimulator:
                 options={"progress_bar": None, "atol": 1e-6, "rtol": 1e-6},
             )
             filename = f"{save_prefix}_{i}"
-            full_path = os.path.join(save_dir, filename)
+            full_path = os.path.join(result_dir, filename)
             qt.qsave(result, full_path)
             batch_files.append(full_path)
             initial_state = result.states[-1]  # carry last state to next batch
 
-        print(f"All {len(batch_files)} batches completed and saved to disk in '{save_dir}'.")
+        print(f"All {len(batch_files)} batches completed and saved to disk in '{result_dir}'.")
         self.result_files = batch_files  # Store for later loading
+
+        # Load full result immediately so we can clean up if needed
+        # (The user didn't explicitly ask to load it here, but if we delete files, we MUST load it first)
+        # However, looking at original code, load_full_result was separate. 
+        # But if store_batch_file is False, we generally want the result in memory but no files.
+        # Let's perform cleanup logic *after* the user would usually load. 
+        # Actually to be safe and "atomic", we should probably load it here if we are going to delete.
+        # But let's stick to the request: "If store_batch_file = False, then it should only ssave the plots there."
+        # This implies we might need the result object available.
+        
+        # Let's automatically load the result so we have it in memory before deleting files
+        if not store_batch_file:
+            print("store_batch_file=False: Loading full result into memory explicitly to allow file cleanup...")
+            self.load_full_result()
+            print("Cleaning up batch files...")
+            for f in batch_files:
+                if os.path.exists(f + ".qu"): # qutip adds .qu extension usually
+                    os.remove(f + ".qu")
+                elif os.path.exists(f):
+                    os.remove(f)
+            # Also clear the file list so we don't try to load again
+            # self.result_files = [] 
+            print("Batch files deleted.")
+
         return batch_files
 
     def load_full_result(self):
@@ -191,6 +232,11 @@ class QutipPulseSimulator:
         return full_result
 
     def get_state_at_frame(self, frame):
+        # Prefer loading from memory if full result is loaded (e.g. if batch files were deleted)
+        if self.result is not None:
+             return self.result.states[frame]
+
+        # Fallback to disk loading
         batch_idx = frame // self.batch_size
         state_idx = frame % self.batch_size
         result = qt.qload(self.result_files[batch_idx])
@@ -218,7 +264,23 @@ class QutipPulseSimulator:
         plt.tight_layout()
         plt.show()
 
-    def animate_wigner(self, systems=None, number_of_frames=20, fps=100, save_path=None, writer='Pillow'):
+    def animate_wigner(self, systems=None, number_of_frames=20, fps=100, save=True, writer='Pillow'):
+        """
+        Animate Wigner functions.
+        Args:
+            save (bool or str): If True, saves to 'wigner_animation.gif' in the result directory. 
+                                If str, saves to that filename. 
+                                If False, does not save.
+        """
+        save_path = None
+        if save:
+            filename = save if isinstance(save, str) else "wigner_animation.gif"
+            if hasattr(self, 'save_dir'):
+                save_path = os.path.join(self.save_dir, filename)
+            else:
+                save_path = filename # Fallback if save_dir not set
+
+        
         if systems is None:
             raise ValueError("No systems provided for animation. Please specify a list of system objects.")
         n_systems = len(systems)
