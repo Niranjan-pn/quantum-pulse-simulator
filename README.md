@@ -51,9 +51,40 @@ A Python framework for simulating quantum systems with pulse-driven dynamics usi
   - Multi-system pulse coordination display
 
 
-## Dependencies
-- QuTiP 5+
-- NumPy
-- Matplotlib
-- JAX (optional for GPU acceleration)
-- tqdm
+## Installation
+
+### Prerequisites
+- Python 3.10 or higher
+- [Conda](https://docs.conda.io/en/latest/) (for environment management)
+
+### Setup
+We recommend using a specific Conda environment to ensure compatibility with JAX and QuTiP.
+
+1. **Create and Activate Conda Environment**
+   ```bash
+   conda create -n quantum_env python=3.11
+   conda activate quantum_env
+   ```
+
+2. **Install Poetry**
+   Install Poetry within the conda environment:
+   ```bash
+   pip install poetry
+   ```
+
+3. **Install Dependencies**
+   Install project dependencies using Poetry:
+   ```bash
+
+   # Install dependencies
+   poetry install
+   ```
+   
+   *Note: This setup includes JAX and qutip-jax for optimized performance.*
+
+## Basic Usage
+
+Run the example scripts to verify the installation:
+```bash
+python examples/example_kerr_cat_stabilization.py
+```

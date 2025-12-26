@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "quantum_pulse_simulator"
+version = "0.1.0"
+description = "Full hamiltonian pulse level simulations"
+authors = ["Niranjan <niran@example.com>"]
+readme = "README.md"
+packages = [{include = "quantum_pulse_simulator", from = "src"}]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.13"
+numpy = "^1.26"
+matplotlib = "^3.8"
+scipy = "^1.11"
+tqdm = "^4.66"
+qutip = "^5.0"
+jax = "^0.4"
+jaxlib = "^0.4"
+qutip-jax = "^0.1"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
