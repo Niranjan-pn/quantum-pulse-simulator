@@ -123,6 +123,19 @@ class QutipPulseSimulator:
 
         return [H0] + H_td_list
 
+    def _build_c_ops(self):
+        """
+        Construct the total collapse operators list by tensor product of system-specific c_ops
+        with identity operators for other systems.
+        """
+        total_c_ops = []
+        for i, sys in enumerate(self.systems):
+            for op in sys.c_ops:
+                ops = [qt.identity(s.num_fock) for s in self.systems]
+                ops[i] = op
+                total_c_ops.append(qt.tensor(ops))
+        return total_c_ops
+
     def simulate(self, batch_size=1000, save_dir=".", save_prefix="batch_result", simulation_name="sim", store_batch_file=False):
         """
         Run time evolution in batches to avoid memory errors.
@@ -140,11 +153,22 @@ class QutipPulseSimulator:
 
         # Construct result directory: lib/{simulation_name}_{date}_{time}
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        # If the user passed default save_dir=".", we override it to use the new structure
-        # Otherwise, if they explicitly passed something else, we respect it but might append the subfolder?
-        # Based on request: "change it to a temp folder inside lib"
+        # Determine the directory of the running script to place results nearby
+        try:
+            import sys
+            script_path = os.path.abspath(sys.argv[0])
+            # Check if it looks like a python script file
+            if os.path.isfile(script_path):
+                script_dir = os.path.dirname(script_path)
+            else:
+                script_dir = os.getcwd()
+        except:
+            script_dir = os.getcwd()
+
+        # If the user passed default save_dir=".", we override it to use the new structure logic
+        # which places sim_results relative to the script
         if save_dir == ".":
-            result_dir = os.path.join("lib", f"{simulation_name}_{timestamp}")
+            result_dir = os.path.join(script_dir, "sim_results", f"{simulation_name}_{timestamp}")
         else:
             result_dir = os.path.join(save_dir, f"{simulation_name}_{timestamp}")
 
@@ -152,6 +176,7 @@ class QutipPulseSimulator:
         self.save_dir = result_dir # Store for plotting functions
 
         H = self._build_total_hamiltonian()
+        c_ops = self._build_c_ops()
         n_times = len(self.tlist)
         batch_starts = list(range(0, n_times-1, batch_size))
         initial_state = self.initial_state
@@ -160,18 +185,47 @@ class QutipPulseSimulator:
 
         print(f"Simulating in {len(batch_starts)} batches of up to {batch_size} time points each...")
         print(f"Results will be stored in: {result_dir}")
+        if c_ops:
+            print(f"Collapse operators detected ({len(c_ops)}). Using mesolve.")
+        else:
+            print("No collapse operators. Using sesolve.")
 
         for i, start in enumerate(tqdm(batch_starts, desc="Batches")):
             end = min(start + batch_size, n_times-1)
             t_batch = self.tlist[start:end+1]  # include endpoint
-            result = qt.mesolve(
-                H,
-                initial_state,
-                t_batch,
-                c_ops=[],
-                args=None,
-                options={"progress_bar": None, "atol": 1e-6, "rtol": 1e-6},
-            )
+            
+            common_args = {
+                "H": H,
+                "rho0": initial_state,
+                "tlist": t_batch,
+                "args": None,
+                "options": {"progress_bar": None, "atol": 1e-6, "rtol": 1e-6},
+            }
+
+            if c_ops is None or len(c_ops) == 0:
+                # Use Schrodinger equation solver for unitary dynamics (faster)
+                # Note: parameter name for initial state in sesolve is 'psi0', but positionally it's 2nd.
+                # using positional args for H, state, tlist to match both signatures roughly, 
+                # but explicit keywords are safer if they differ.
+                # sesolve signature: sesolve(H, psi0, tlist, e_ops=[], args={}, options=None, ...)
+                result = qt.sesolve(
+                    H,
+                    initial_state,
+                    t_batch,
+                    e_ops=[],
+                    args=None,
+                    options={"progress_bar": None, "atol": 1e-6, "rtol": 1e-6},
+                )
+            else:
+                # Use Master equation solver (Lindblad dynamics)
+                result = qt.mesolve(
+                    H,
+                    initial_state,
+                    t_batch,
+                    c_ops=c_ops,
+                    args=None,
+                    options={"progress_bar": None, "atol": 1e-6, "rtol": 1e-6},
+                )
             filename = f"{save_prefix}_{i}"
             full_path = os.path.join(result_dir, filename)
             qt.qsave(result, full_path)
@@ -194,15 +248,10 @@ class QutipPulseSimulator:
         if not store_batch_file:
             print("store_batch_file=False: Loading full result into memory explicitly to allow file cleanup...")
             self.load_full_result()
-            print("Cleaning up batch files...")
-            for f in batch_files:
-                if os.path.exists(f + ".qu"): # qutip adds .qu extension usually
-                    os.remove(f + ".qu")
-                elif os.path.exists(f):
-                    os.remove(f)
-            # Also clear the file list so we don't try to load again
-            # self.result_files = [] 
-            print("Batch files deleted.")
+            print(f"Cleaning up result directory: {result_dir}...")
+            if os.path.exists(result_dir):
+                shutil.rmtree(result_dir)
+            print("Batch files and directory deleted.")
 
         return batch_files
 

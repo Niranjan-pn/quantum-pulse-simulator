@@ -1,5 +1,5 @@
 import qutip as qt
-
+import numpy as np
 class QuantumSystem:
     """Unified quantum system class with flexible Hamiltonian composition.
     
@@ -25,7 +25,27 @@ class QuantumSystem:
         self.a = qt.destroy(num_fock)
         self.state = qt.basis(num_fock, 0) if state is None else state
         self.name = name
+        self.c_ops = []  # List of collapse operators
         self.add_harmonic_oscillator()  # Initialize with harmonic oscillator term
+
+    def add_single_photon_loss(self, Kappa):
+        """
+        Add single photon loss collapse operator to the system.
+        
+        Args:
+            Kappa (float): Loss rate.
+        """
+        self.c_ops.append(np.sqrt(Kappa) * self.a)
+    
+    def add_multi_photon_loss(self, Kappa, n_photons):
+        """
+        Add multi photon loss collapse operator to the system.
+        
+        Args:
+            Kappa (float): Loss rate.
+            n_photons (int): Number of photons to be lost.
+        """
+        self.c_ops.append(np.sqrt(Kappa) * self.a** n_photons)
 
     def add_harmonic_oscillator(self,):
         """Adds harmonic oscillator term: ħω(a†a + ½)"""

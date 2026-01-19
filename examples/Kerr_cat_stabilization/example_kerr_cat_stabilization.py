@@ -22,13 +22,13 @@ from quantum_pulse_simulator.devices import QuantumSystem
 # =========================
 KERR_COEFF = 6.7e6 * 2 * np.pi  # Kerr nonlinearity (rad/s)
 OSC_FREQ = 6e9 * 2 * np.pi  # Oscillator frequency (rad/s)
-NUM_FOCK = 15  # Hilbert space dimension
-ALPHA_TARGET = 4  # Target coherent state amplitude
-
+NUM_FOCK = 10  # Hilbert space dimension
+ALPHA_TARGET = 2.6  # Target coherent state amplitude
+KAPPA = 0.07e6 * 2 * np.pi  # Loss rate (rad/s)
 # =========================
 # Pulse Parameters 
 # =========================
-PULSE_DURATION = 700e-9  # Total pulse duration (s)
+PULSE_DURATION = 1000e-9  # Total pulse duration (s)
 RISE_TIME = 320e-9  # Pulse rise/fall time (s)
 
 def main():
@@ -43,18 +43,19 @@ def main():
         omega=OSC_FREQ,
         name="Kerr Oscillator"
     )
+    kerr_osc.add_single_photon_loss(KAPPA)
 
-    kerr_osc.add_four_wave_mixer(KERR_COEFF)
+    kerr_osc.add_kerr_oscillator(KERR_COEFF)
 
     # Pulse sequence setup
     ps = PulseSequence(systems=[kerr_osc])
-    ps.add_four_photon_drive(
+    ps.add_two_photon_drive(
         duration=PULSE_DURATION,
         strength=e2_drive,
         system=kerr_osc,
-        shape=ps.flattop_gaussian_shape(PULSE_DURATION, RISE_TIME, fall=False),
+        shape=ps.flattop_gaussian_shape(PULSE_DURATION, RISE_TIME),
         phase=0.0,
-        name="FourPhotonDrive"
+        name="TwoPhotonDrive"
     )
 
 
@@ -65,16 +66,14 @@ def main():
         systems=SYSTEMS,
         pulse_chains=PULSECHAINS,
     )
-    sim.simulate(save_dir=r"D:\PhD_All_Code\quantum-pulse-simulator\examples\results\kerr_cat_stabilization",
-                 batch_size=1000,
-                 save_prefix="Kerr_Cat_Stabilization",)
-
+    sim.simulate()
 
     # Visualize results
     sim.animate_wigner(
         systems=SYSTEMS,
         number_of_frames=200,
         fps=25,
+        save=False
     )
 
 if __name__ == "__main__":
