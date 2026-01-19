@@ -32,29 +32,29 @@ def main():
     
     print(f"Starting Tri-Squeezing Single Simulation (Max duration: {max_duration*1e9:.1f} ns)...")
     
-    ats_osc = QuantumSystem(
+    snail_osc = QuantumSystem(
         num_fock=NUM_FOCK,
         omega=OSC_FREQ,
-        name="ATS Oscillator @ KFP" 
+        name="SNAIL Oscillator @ KFP" 
     )
 
-    ats_osc.add_static_nonlinearities(
+    snail_osc.add_static_nonlinearities(
         strengths=dc
     )
 
-    ps = PulseSequence(systems=[ats_osc])
+    ps = PulseSequence(systems=[snail_osc])
 
     ps.add_drive(
         duration = max_duration,
         strength = g3AC * ALPHA_TARGET,
-        system = ats_osc,
+        system = snail_osc,
         shape = ps.flattop_gaussian_shape(max_duration, 2e-9, fall=True), 
         phase = 0,
         name = "Drive",
         order = 3
     )
 
-    SYSTEMS = [ats_osc]
+    SYSTEMS = [snail_osc]
     PULSECHAINS = [ps]
     sim = QutipPulseSimulator(
         systems=SYSTEMS,
