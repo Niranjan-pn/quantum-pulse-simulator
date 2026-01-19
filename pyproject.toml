@@ -16,7 +16,7 @@ qutip = "^5.0"
 jax = "^0.4"
 jaxlib = "^0.4"
 qutip-jax = "^0.1"
-
+pandas = "^2.1"
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0"
 
