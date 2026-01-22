@@ -4,7 +4,10 @@ import pprint as pp
 
 working_spot =  [ -1.14*np.pi, 1.14*np.pi]
 sweet_spot = [0,0]
-amp_1_alpha_working_spot = 0.0446
+amp_1_alpha_working_spot = 0.4915507857089623
+eta = 500e6 # Linear displacement driving strength assuming to be 500MHZ
+DISPLACEMNT_PULSE_LENGTH = 10e-9 # 10ns
+
 def get_ats_parameter(phi_l,phi_r,max_order=6,AC_max_order=3):
         Ej = 409.6e9 * 2.0 * np.pi
         El = 8.344e9 * 2.0 * np.pi

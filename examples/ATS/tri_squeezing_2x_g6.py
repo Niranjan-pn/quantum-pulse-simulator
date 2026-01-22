@@ -9,6 +9,7 @@ from calibration_utils import fit_trisqueeze, fit_wigner_trisqueezed_state, calc
 import qutip as qt
 
 dc, ac_plus, ac_minus, omega = get_ats_parameter(*working_spot)
+pp.pprint(dc)
 pp.pprint(ac_plus)
 pp.pprint(ac_minus)
 NUM_FOCK = 100
@@ -35,7 +36,7 @@ def main():
         ats_osc = QuantumSystem(
             num_fock=NUM_FOCK,
             omega=OSC_FREQ,
-            name="ATS Oscillator @ KFP" 
+            name="ATS Oscillator @ KFP (2x g6)" 
         )
 
         ats_osc.add_static_nonlinearities(

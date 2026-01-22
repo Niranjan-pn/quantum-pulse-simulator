@@ -1,56 +1,56 @@
 
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../ATS')))
+
 from quantum_pulse_simulator.simulator import QutipPulseSimulator
 from quantum_pulse_simulator.pulse import PulseSequence
 from quantum_pulse_simulator.devices import QuantumSystem
-from ats_device import get_ats_parameter, sweet_spot, working_spot, eta
+from snail_device import eta, DISPLACEMNT_PULSE_LENGTH
 import pprint as pp
 import numpy as np
 import matplotlib.pyplot as plt
 from calibration_utils import disp_calib, disp_calib_plot
 
-dc, ac_plus, ac_minus, omega = get_ats_parameter(*working_spot)
-# pp.pprint(dc)
-# pp.pprint(ac_plus)
-# pp.pprint(ac_minus)
+from snail_device import dc, OMEGA, g3AC
 
 #========================
 # Simulation setup
 #========================
 NUM_FOCK = 30
-OSC_FREQ = omega 
-DISPLACEMNT_PULSE_LENGTH = 10e-9 # 10ns
+OSC_FREQ = OMEGA 
 
 def run_simulation(amp_scale):
-    ats_osc = QuantumSystem(
+    snail_osc = QuantumSystem(
         num_fock=NUM_FOCK,
         omega=OSC_FREQ,
-        name="ATS Oscillator @ KFP" 
+        name="SNAIL Oscillator @ KFP" 
     )
 
-    ats_osc.add_static_nonlinearities(
+    snail_osc.add_static_nonlinearities(
         strengths=dc
     )
 
-    ps = PulseSequence(systems=[ats_osc])
+    ps = PulseSequence(systems=[snail_osc])
 
     ps.add_drive(
         duration = DISPLACEMNT_PULSE_LENGTH,
         strength = amp_scale * eta,
-        system = ats_osc,
+        system = snail_osc,
         shape = ps.flattop_gaussian_shape(DISPLACEMNT_PULSE_LENGTH, 2e-9, fall=True),
         phase = 0.0,
         name = "Drive",
         order = 1
     )
 
-    SYSTEMS = [ats_osc]
+    SYSTEMS = [snail_osc]
     PULSECHAINS = [ps]
     sim = QutipPulseSimulator(
         systems=SYSTEMS,
         pulse_chains=PULSECHAINS,
     )
     # Don't save files for every single point in the sweep to avoid clutter/speed up
-    batch_files = sim.simulate(batch_size=1000, save_prefix=f"ATS_Displacement_{amp_scale:.4f}", store_batch_file=False)
+    batch_files = sim.simulate(batch_size=1000, save_prefix=f"SNAIL_Displacement_{amp_scale:.4f}", store_batch_file=False)
     
     # Get final state
     final_state = sim.result.states[-1]
@@ -60,7 +60,7 @@ def run_simulation(amp_scale):
     # But sim.result.states[-1] is already the full state
     # We want population of Fock |0> and |1>
     
-    P0 = np.abs(final_state.overlap(ats_osc.state))**2 # ground state is initial state usually
+    P0 = np.abs(final_state.overlap(snail_osc.state))**2 # ground state is initial state usually
     # Better: explicit projection
     rho = final_state # It's a ket if using sesolve
     
@@ -68,7 +68,7 @@ def run_simulation(amp_scale):
     # Check if sesolve or mesolve. ats_device has no c_ops so likely sesolve -> kets
     
     # Project onto |0>
-    basis_0 = ats_osc.state # This is initialized as basis(N, 0) in QuantumSystem
+    basis_0 = snail_osc.state # This is initialized as basis(N, 0) in QuantumSystem
     # Project onto |1>
     import qutip as qt
     basis_1 = qt.basis(NUM_FOCK, 1)

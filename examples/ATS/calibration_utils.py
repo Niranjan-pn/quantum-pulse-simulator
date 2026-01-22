@@ -18,7 +18,13 @@ import scipy.integrate as integrate
 import cmath as cm
 import scipy
 from scipy import optimize
+from basic_utils import gaussian, gaussian_periodic_2pi
+from typing import Literal, Callable, Optional
+from itertools import groupby
+from operator import itemgetter
 
+import simple as simplefit
+from scipy.optimize import curve_fit
 def funcD(x, n, scale, Ascale):
     return scale * np.exp(-((Ascale * x) ** 2)) * (Ascale * x) ** (2 * n) / (math.factorial(n))
 
@@ -272,7 +278,7 @@ def calculate_phase_space_metrics(W, xvec, yvec, epsilon=0.01):
               "Grid might be too small or resolution too low.")
 
     # Target probability threshold
-    target = (1 - epsilon) * total_trace
+    target = (1 - epsilon) * total_trace    
     
     # Find first index where cumulative probability exceeds target
     # Since we look for 99%, we are likely in the 'tail' where curve is monotonic.
@@ -280,3 +286,108 @@ def calculate_phase_space_metrics(W, xvec, yvec, epsilon=0.01):
     R_epsilon = r_sorted[idx_cross]
     
     return R_epsilon, V_neg, total_trace
+
+def get_peak_direction(ydata: np.ndarray, peak_direction: Literal["up", "down", "auto"] = "auto"):
+    """Validate and select peak direction from options and data."""
+    assert peak_direction in ["up", "down", "auto"]
+    if peak_direction == "auto":
+        peak_direction = "up" if abs(max(ydata) - np.mean(ydata)) > abs(min(ydata) - np.mean(ydata)) else "down"
+    return peak_direction
+
+def fit_peak(
+    xdata: np.ndarray,
+    ydata: np.ndarray,
+    peak_func: Callable = gaussian,
+    fit_peak_at_x_value: Optional[float] = None,
+    peak_direction: Literal["up", "down", "auto"] = "auto",
+    peak_found_threshold: int = 4,
+    save: bool = False,
+    save_plot_path: Optional[str] = None,
+    figname: str = "fit_peak",
+    plot: bool = False,
+) -> dict:
+    """
+    Fit data to a peaked function.
+
+    Args:
+        xdata: Ordinates of the data (Should be real valued).
+        ydata: Abscissae of the data (Should be real valued).
+        peak_func: function to be fitted taking the arguments (data, peak_x_val, amp, gamma, bias)
+        fit_peak_at_x_value: x-value of the peak to be fitted (useful if several exists)
+        peak_direction: Whether the peak points up or down ('up' or 'down' or 'auto').
+        peak_found_threshold: The minimum number of sigmas above floor noise to decide a peak was found.
+        save: it True, save to the figure.
+        save_plot_path: where to save the figure.
+        figname: figure name when saved.
+
+    Returns:
+        A dictionary containing "popt", "pcov", "errors", "initial_guess" and "peak_found".
+    """
+    xdata = np.asarray(xdata)
+    assert np.all(np.isreal(xdata)), "xdata should not be complex"
+    assert np.all(np.isreal(ydata)), "ydata should not be complex"
+    peak_direction = get_peak_direction(ydata, peak_direction)
+
+    if fit_peak_at_x_value is None:
+        peak_x_val = xdata[np.argmax(ydata)] if peak_direction == "up" else xdata[np.argmin(ydata)]
+    else:
+        peak_x_val = fit_peak_at_x_value
+
+    if peak_direction == "up":
+        amplitude = max(ydata) - np.mean(ydata)
+        idx_peaks = np.where(ydata > np.mean(ydata) + amplitude / 4)[0]
+    else:
+        amplitude = min(ydata) - np.mean(ydata)
+        idx_peaks = np.where(ydata < np.mean(ydata) + amplitude / 4)[0]
+
+    gamma_estimate = (max(xdata) - min(xdata)) / 5
+    for _, g in groupby(enumerate(idx_peaks), lambda i_x: i_x[0] - i_x[1]):
+        group_idxs = list(map(itemgetter(1), g))
+        group_xdata = xdata[group_idxs]
+        if peak_x_val >= min(group_xdata) and peak_x_val < max(group_xdata):
+            gamma_estimate = max(max(group_xdata) - min(group_xdata), 2 * np.diff(xdata)[0])
+            break
+
+    initial_guess = [
+        peak_x_val,
+        amplitude,
+        gamma_estimate / 2,  # the interval over which the fitting happens depends on the data
+        np.mean(ydata),
+    ]
+    bounds = (
+        [peak_x_val - np.abs(gamma_estimate), -np.inf, 0, -np.inf],
+        [peak_x_val + np.abs(gamma_estimate), np.inf, np.inf, np.inf],
+    )
+
+    if peak_func == gaussian_periodic_2pi:
+        bounds[0][0] = max(peak_x_val - gamma_estimate, 0)
+        bounds[1][0] = min(peak_x_val + gamma_estimate, 2 * np.pi)
+
+    popt, pcov = curve_fit(peak_func, xdata, ydata, p0=initial_guess, maxfev=3000000, bounds=bounds)
+    errors = simplefit.get_fit_errors(popt, pcov)
+    peak_found = max(ydata) > np.mean(ydata) + peak_found_threshold * np.std(ydata)
+
+    # Plotting the fit
+    if plot:
+        plt.figure(figsize=(8, 6))
+        plt.plot(xdata, ydata, "b-", label="Data")
+        plt.plot(xdata, peak_func(xdata, *popt), "r-", label="Fit: " + peak_func.__name__)
+        plt.axvline(peak_x_val, ls="--", color="black", label="initial x0 estimate and bounds")
+        plt.axvline(peak_x_val - gamma_estimate, ls="--", color="black")
+        plt.axvline(peak_x_val + gamma_estimate, ls="--", color="black")
+        plt.axvline(popt[0])
+        plt.xlabel("X-axis")
+        plt.ylabel("Y-axis")
+        plt.title("Peak Fitting")
+        plt.legend()
+        plt.grid(True)
+        if save and save_plot_path is not None:
+            plt.savefig(save_plot_path / f"{figname}_{peak_func.__name__}.png")
+
+    return {
+        "popt": popt,
+        "pcov": pcov,
+        "errors": errors,
+        "initial_guess": initial_guess,
+        "peak_found": peak_found,
+    }
