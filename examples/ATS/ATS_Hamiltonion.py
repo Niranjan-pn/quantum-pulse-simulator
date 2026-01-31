@@ -421,7 +421,7 @@ class ATS:
             g4 = self.gi(4, phi_min, phi_plus, phi_minus)
             g6 = self.gi(6, phi_min, phi_plus, phi_minus)
             g8 = self.gi(8, phi_min, phi_plus, phi_minus)
-            gevensum_val = g4 + g6 + g8
+            gevensum_val = g6 + g8
             
             # Normalize by MHz scale (convert rad/s -> Hz first)
             kerr_norm = kerr_val / (2 * np.pi * 1e6)
@@ -430,8 +430,8 @@ class ATS:
             
             # Cost function
             cost = (weight_kerr * kerr_norm**2 + 
-                   weight_odd * goddsum_norm**2 + 
-                   weight_even * gevensum_norm**2)
+                   weight_odd * goddsum_norm**2 
+                  )
             
             return cost
         
@@ -468,8 +468,8 @@ class ATS:
         goddsum_norm = goddsum / (2 * np.pi * 1e6)
         gevensum_norm = gevensum / (2 * np.pi * 1e6)
         cost_grid = (weight_kerr * kerr_norm**2 + 
-                    weight_odd * goddsum_norm**2 + 
-                    weight_even * gevensum_norm**2)
+                    weight_odd * goddsum_norm**2 
+                   )
         
         # Find the best initial points
         flat_costs = cost_grid.flatten()
@@ -562,7 +562,7 @@ class ATS:
             omega_val = self.omega_renormalised(phi_min, phi_plus, phi_minus)
             Z_val = self.Z(phi_min, phi_plus, phi_minus)
             kerr_val = self.kerr(phi_min, phi_plus, phi_minus)
-            
+            g3 = self.gi(3, phi_min, phi_plus, phi_minus)
             g5 = self.gi(5, phi_min, phi_plus, phi_minus)
             g7 = self.gi(7, phi_min, phi_plus, phi_minus)
             g9 = self.gi(9, phi_min, phi_plus, phi_minus)
@@ -571,7 +571,7 @@ class ATS:
             g4 = self.gi(4, phi_min, phi_plus, phi_minus)
             g6 = self.gi(6, phi_min, phi_plus, phi_minus)
             g8 = self.gi(8, phi_min, phi_plus, phi_minus)
-            gevensum_val = g4 + g6 + g8
+            gevensum_val = g6 + g8
             
             g2ac_plus_val = self.gi_ac_plus(2, phi_min, phi_plus, phi_minus)
             g2ac_minus_val = self.gi_ac_minus(2, phi_min, phi_plus, phi_minus)
@@ -586,17 +586,19 @@ class ATS:
             
             sweet_spots_data[col_name] = {
                 'kerr_radius': round(float(kerr_radius), 3),
-                'omega (GHz)': round(float(omega_val / 1e9 / 2 / onp.pi), 3),
+                'omega (GHz) / 2pi': round(float(omega_val / 1e9 / 2 / onp.pi), 3),
                 'Z (Ohm)': round(float(Z_val), 3),
-                'Kerr (MHz)': round(float(kerr_val / (2 * onp.pi * 1e6)), 3),
-                'Odd sum (MHz)': round(float(goddsum_val / (2 * onp.pi * 1e6)), 3),
-                'Even sum (MHz)': round(float(gevensum_val / (2 * onp.pi * 1e6)), 3),
-                'g2ac+ (MHz)': round(float(g2ac_plus_val / (2 * onp.pi * 1e6)), 3),
-                'g2ac- (MHz)': round(float(g2ac_minus_val / (2 * onp.pi * 1e6)), 3),
-                'g3ac+ (MHz)': round(float(g3ac_plus_val / (2 * onp.pi * 1e6)), 3),
-                'g3ac- (MHz)': round(float(g3ac_minus_val / (2 * onp.pi * 1e6)), 3),
-                'g4ac+ (MHz)': round(float(g4ac_plus_val / (2 * onp.pi * 1e6)), 3),
-                'g4ac- (MHz)': round(float(g4ac_minus_val / (2 * onp.pi * 1e6)), 3),
+                'Kerr (MHz)': round(float(kerr_val / 1e6), 3),
+                'g3dc (MHz)': round(float(g3 / 1e6 ), 3),
+                'g4dc (MHz)': round(float(g4 / 1e6 ), 3),
+                'g5dc (MHz)': round(float(g5 / 1e6 ), 3),
+                'g6dc (MHz)': round(float(g6 / 1e6 ), 3),
+                'Odd sum (MHz)': round(float(goddsum_val / 1e6 ), 3),
+                'Even sum (MHz)': round(float(gevensum_val / 1e6 ), 3),
+                'g2ac+ (MHz)': round(float(g2ac_plus_val / 1e6 ), 3),
+                'g2ac- (MHz)': round(float(g2ac_minus_val / 1e6 ), 3),
+                'g3ac+ (MHz)': round(float(g3ac_plus_val / 1e6 ), 3),
+                'g3ac- (MHz)': round(float(g3ac_minus_val / 1e6 ), 3),
                 'Cost': round(float(cost), 3),
                 'Lj (nH)': round(float(get_jj_inductance_from_energy(d2U_dphi2) * 1e9), 3),
             }
@@ -610,6 +612,153 @@ class ATS:
         print(f"  Optimization: {time.time() - opt_start:.1f}s")
         
         return df
+
+    def find_sweet_spot(self, phi_minus_range: Tuple[float, float] = (-2.5*onp.pi, 2.5*onp.pi),
+                       grid_points: int = 100,
+                       n_initial_points: int = 10,
+                       cost_threshold: float = 1e-3,
+                       use_gradient: bool = True) -> pd.DataFrame:
+        """Find sweet spots by fixing phi_+ = pi and tuning only phi_- to find 
+        where g3, g4, g5 go to zero. Returns phi_L and phi_R.
+        
+        This function:
+        1. Fixes phi_+ = pi.
+        2. Sweeps phi_- over the specified range to find initial points.
+        3. Minimizes a cost function = |g3|^2 + |g4|^2 + |g5|^2 normalized to MHz.
+        4. Returns a table with phi_L, phi_R and other parameters.
+        
+        Args:
+            phi_minus_range (tuple, optional): (min, max) for phi_minus search space.
+            grid_points (int, optional): Number of grid points for initial search.
+            n_initial_points (int, optional): Number of best initial points to start optimization from.
+            cost_threshold (float, optional): Threshold for accepting a sweet spot.
+            use_gradient (bool, optional): Use JAX gradients for optimization.
+            
+        Returns:
+            pd.DataFrame: Table with sweet spot coordinates and parameters.
+        """
+        phi_plus_fixed = onp.pi
+        
+        @jit
+        def cost_function_jax(phi_minus: float) -> float:
+            """Cost function for fixed phi_+ = pi."""
+            phi_plus = phi_plus_fixed
+            
+            # Find minimum of potential
+            phi_min = newton_minimize(self.U_plus_minus_basis, phi_plus, phi_minus)
+            
+            # Calculate quantities
+            g3 = self.gi(3, phi_min, phi_plus, phi_minus)
+            g4 = self.gi(4, phi_min, phi_plus, phi_minus)
+            g5 = self.gi(5, phi_min, phi_plus, phi_minus)
+            
+            # Normalize by MHz scale (rad/s -> Hz -> MHz)
+            g3_norm = g3 / (2 * np.pi * 1e6)
+            g4_norm = g4 / (2 * np.pi * 1e6)
+            g5_norm = g5 / (2 * np.pi * 1e6)
+            
+            cost = g3_norm**2 + g4_norm**2 + g5_norm**2
+            return cost
+
+        def cost_function_scipy(phi_m: onp.ndarray) -> float:
+            """Wrapper for scipy.optimize."""
+            return float(cost_function_jax(phi_m[0]))
+
+        if use_gradient:
+            grad_cost_jax = jit(grad(cost_function_jax, argnums=0))
+            def grad_cost_scipy(phi_m: onp.ndarray) -> onp.ndarray:
+                """Gradient wrapper for scipy."""
+                return onp.array([float(grad_cost_jax(phi_m[0]))])
+        else:
+            grad_cost_scipy = None
+
+        # Step 1: Coarse search on grid for phi_minus
+        phi_minus_vals = np.linspace(phi_minus_range[0], phi_minus_range[1], grid_points)
+        print(f"Performing initial sweep on phi_- (phi_+ = pi, {grid_points} points)...")
+        costs = jax.vmap(cost_function_jax)(phi_minus_vals)
+        
+        # Step 2: Find best initial points
+        flat_costs = onp.array(costs)
+        flat_indices = onp.argsort(flat_costs)[:n_initial_points]
+        initial_points = [float(phi_minus_vals[idx]) for idx in flat_indices]
+        
+        # Step 3: Optimize from each initial point
+        print(f"Optimizing from {n_initial_points} initial points...")
+        optimized_points = []
+        optimized_costs = []
+        
+        for init_phi_m in initial_points:
+            result = minimize(
+                cost_function_scipy,
+                [init_phi_m],
+                method='L-BFGS-B' if use_gradient else 'Nelder-Mead',
+                jac=grad_cost_scipy if use_gradient else None,
+                bounds=[(phi_minus_range[0], phi_minus_range[1])],
+                options={'maxiter': 100}
+            )
+            
+            if result.success and result.fun < cost_threshold:
+                optimized_points.append(result.x[0])
+                optimized_costs.append(result.fun)
+        
+        # Step 4: Keep unique points
+        unique_phi_m = []
+        unique_costs = []
+        tolerance = 0.05  # Radians
+        
+        for p, c in zip(optimized_points, optimized_costs):
+            is_duplicate = False
+            for up in unique_phi_m:
+                if onp.abs(p - up) < tolerance:
+                    is_duplicate = True
+                    break
+            if not is_duplicate:
+                unique_phi_m.append(p)
+                unique_costs.append(c)
+        
+        print(f"Found {len(unique_phi_m)} unique points.")
+        
+        # Step 5: Gather results
+        results = {}
+        for phi_m, cost in zip(unique_phi_m, unique_costs):
+            # L = phi_+ - phi_- , R = phi_+ + phi_-
+            phi_L = phi_plus_fixed - phi_m
+            phi_R = phi_plus_fixed + phi_m
+            phi_min = newton_minimize(self.U_plus_minus_basis, phi_plus_fixed, phi_m)
+            phi_plus, phi_minus = self.get_phi_plus_minus(phi_L, phi_R)
+            
+            omega_val = self.omega_renormalised(phi_min, phi_plus_fixed, phi_m)
+            g3 = self.gi(3, phi_min, phi_plus_fixed, phi_m)
+            g4 = self.gi(4, phi_min, phi_plus_fixed, phi_m)
+            g5 = self.gi(5, phi_min, phi_plus_fixed, phi_m)
+            g6 = self.gi(6, phi_min, phi_plus_fixed, phi_m)
+            kerr_val = self.kerr(phi_min, phi_plus_fixed, phi_m)
+            g2ac_plus_val = self.gi_ac_plus(2, phi_min, phi_plus, phi_minus)
+            g2ac_minus_val = self.gi_ac_minus(2, phi_min, phi_plus, phi_minus)
+            g3ac_plus_val = self.gi_ac_plus(3, phi_min, phi_plus, phi_minus)
+            g3ac_minus_val = self.gi_ac_minus(3, phi_min, phi_plus, phi_minus)
+            g4ac_plus_val = self.gi_ac_plus(4, phi_min, phi_plus, phi_minus)
+            g4ac_minus_val = self.gi_ac_minus(4, phi_min, phi_plus, phi_minus)
+            
+            col_name = f"phi_m={phi_m/onp.pi:.3f}pi"
+            results[col_name] = {
+                'phi_L (pi)': round(float(phi_L/onp.pi), 4),
+                'phi_R (pi)': round(float(phi_R/onp.pi), 4),
+                'phi_m (pi)': round(float(phi_m/onp.pi), 4),
+                'omega (GHz)': round(float(omega_val / (2 * np.pi * 1e9)), 3),
+                'g3 (MHz)': round(float(g3 / (1e6)), 3),
+                'g4 (MHz)': round(float(g4 / (1e6)), 3),
+                'g5 (MHz)': round(float(g5 / (1e6)), 3),
+                'g6 (kHz)': round(float(g6 / (1e3)), 3),
+                'Kerr (MHz)': round(float(kerr_val / (1e6)), 3),
+                'g2AC+ (MHz)' : round(float(g2ac_plus_val/1e6),3),
+                'g2AC- (MHz)': round(float(g2ac_minus_val/1e6),3),
+                'g3AC+ (MHz)' : round(float(g3ac_plus_val/1e6),3),
+                'g3AC- (MHz)' : round(float(g3ac_minus_val/1e6),3),
+                'Cost': round(float(cost), 6)
+            }
+            
+        return pd.DataFrame(results)
 
     def domega_dparam(self, U_func: Callable, phi_min: float, *args: float, param_index: int) -> Tuple[float, float]:
         """Compute the derivative of the frequency with respect to a parameter.
@@ -755,8 +904,7 @@ class ATS:
         goddsum = v_gi(5)(phi_min_grid, phi_plus_grid, phi_minus_grid) \
                   + v_gi(7)(phi_min_grid, phi_plus_grid, phi_minus_grid) \
                   + v_gi(9)(phi_min_grid, phi_plus_grid, phi_minus_grid)
-        gevensum = v_gi(4)(phi_min_grid, phi_plus_grid, phi_minus_grid) \
-                   + v_gi(6)(phi_min_grid, phi_plus_grid, phi_minus_grid) \
+        gevensum = v_gi(6)(phi_min_grid, phi_plus_grid, phi_minus_grid) \
                    + v_gi(8)(phi_min_grid, phi_plus_grid, phi_minus_grid)
         g2ac_plus = v_giac_plus(2)(phi_min_grid, phi_plus_grid, phi_minus_grid)
         g2ac_minus = v_giac_minus(2)(phi_min_grid, phi_plus_grid, phi_minus_grid)
@@ -1273,14 +1421,14 @@ if __name__ == "__main__":
         C_cross_pm = (C_R - C_L) / 4
         return C_plus, C_minus, C_cross_pm
     
-    def run_pure_ats_example(sweet_spot=False,static_nonlinearity=False) -> None:
+    def run_pure_ats_example(sweet_spot=True,static_nonlinearity=False) -> None:
         
         # Example 1: Pure ATS
-        Ej = 409e9 *2.0* np.pi
-        El = 8.44e9  *2.0* np.pi
-        Er = 8.44e9 *2.0*np.pi
-        Ec = get_Ec_from_C(C=540e-15)
-        N = 3
+        Ej = 409.6e9 * 2.0 * np.pi
+        El = 8.344e9 * 2.0 * np.pi
+        Er = 8.344e9 * 2.0 * np.pi
+        Ec = get_Ec_from_C(C=1134e-15)
+        N = 5
 
         B = 5.01e-5/100 # 1% of value from SNAIL paper relating to 1/f noise
         A =  3.63e-5*1e-9/10 # 10% of value from SNAIL paper relating to white noise
@@ -1415,8 +1563,8 @@ if __name__ == "__main__":
         Ej = 409.6e9 * 2.0 * np.pi
         El = 8.344e9 * 2.0 * np.pi
         Er = 8.344e9 * 2.0 * np.pi
-        Ec = get_Ec_from_C(C=1750e-15)
-        N = 3
+        Ec = get_Ec_from_C(C=1134e-15)
+        N = 5
 
         B = 5.01e-5/100
         A = 3.63e-5*1e-9/10
@@ -1451,7 +1599,7 @@ if __name__ == "__main__":
             n_initial_points=15,  # Number of starting points (default: 15)
             weight_kerr=1.0, 
             weight_odd=1.0, 
-            weight_even=1.0,
+            weight_even=0,
             cost_threshold=1.0,  # Adjust this threshold based on your needs
             use_gradient=True  # Use analytical gradients (much faster!)
         )
@@ -1466,9 +1614,42 @@ if __name__ == "__main__":
         else:
             print("\nNo sweet spots found. Try adjusting cost_threshold or weights.")
 
+
+
+    # Example 5: Find sweet spot with fixed phi_plus = pi
+    def run_fix_phi_plus_example() -> None:
+        Ej = 395e9 * 2.0 * np.pi
+        El = 10e9 * 2.0 * np.pi
+        Er = 10e9 * 2.0 * np.pi
+        Ec = get_Ec_from_C(C=1750e-15)
+        N = 3
+
+        ats_pure = ATS(
+            Ej=Ej, El=El, Er=Er, Ec=Ec, N=N,
+            T1=200e-6
+        )
+        phi_vals_L = np.linspace(-2.5 * np.pi, 2.5 * np.pi, 100)
+        phi_vals_R = np.linspace(-2.5 * np.pi, 2.5 * np.pi, 100)
+
+        phi_L_grid, phi_R_grid, omega, kerr, goddsum, gevensum, g2ac_plus, g2ac_minus, g3ac_plus, g3ac_minus, T2_left_right, T2_plus_minus = ats_pure.grid_calculate(phi_vals_L, phi_vals_R)
+        ats_pure.plot_results(phi_L_grid, phi_R_grid, omega, kerr, goddsum, gevensum, g2ac_plus, g2ac_minus, g3ac_plus, g3ac_minus, T2_left_right, T2_plus_minus, phi_vals_L, phi_vals_R)
+
+        print("\nFinding sweet spots with fixed phi_plus = pi...")
+        sweet_spot_table = ats_pure.find_sweet_spot(
+            phi_minus_range=(-2.5 * np.pi, 2.5 * np.pi),
+            grid_points=100,
+            cost_threshold=10.0  # Increased threshold to see some results
+        )
+        
+        if not sweet_spot_table.empty:
+            print("\nFixed phi_plus = pi Sweet Spot Analysis:")
+            print("="*100)
+            print(sweet_spot_table.to_string())
+            print("="*100)
+        else:
+            print("\nNo sweet spots found with fixed phi_plus = pi.")
+
     # run_pure_ats_example()
     # run_linear_inductance_example()
-    run_sweet_spot_example()
-    
-    # Execute the basic ATS example with nonlinearity maps
-    # run_pure_ats_example(static_nonlinearity=False)
+    # run_sweet_spot_example()
+    run_fix_phi_plus_example()

@@ -18,13 +18,14 @@ import scipy.integrate as integrate
 import cmath as cm
 import scipy
 from scipy import optimize
-from basic_utils import gaussian, gaussian_periodic_2pi
+from quantum_pulse_simulator.experiments.utils.basic_utils import gaussian, gaussian_periodic_2pi
 from typing import Literal, Callable, Optional
 from itertools import groupby
 from operator import itemgetter
 
-import simple as simplefit
+import quantum_pulse_simulator.experiments.utils.simple as simplefit
 from scipy.optimize import curve_fit
+
 def funcD(x, n, scale, Ascale):
     return scale * np.exp(-((Ascale * x) ** 2)) * (Ascale * x) ** (2 * n) / (math.factorial(n))
 

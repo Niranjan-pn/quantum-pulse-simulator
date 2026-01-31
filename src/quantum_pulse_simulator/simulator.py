@@ -292,13 +292,16 @@ class QutipPulseSimulator:
         return result.states[state_idx]
 
     
-    def plot_wigner(self, time=-1, system_index=[0]):
+    def plot_wigner(self, time=-1, system_index=[0],save_path=None, show_plot=True, xlim=None):
         """
         Plot the Wigner function for the specified systems at a given simulation time.
         """
         idx = np.argmin(np.abs(self.tlist - time)) if time >= 0 else -1
         rho = self.result.states[idx]
-        xvec = np.linspace(-5, 5, 200)
+        if xlim is None:
+            xvec = np.linspace(-5, 5, 200)
+        else:
+            xvec = np.linspace(xlim[0], xlim[1], 200)
         fig, ax = plt.subplots(1, len(system_index), figsize=(4 * len(system_index), 8), sharex=True, sharey=True)
         if len(system_index) == 1:
             ax = [ax]
@@ -311,7 +314,10 @@ class QutipPulseSimulator:
             ax[i].set_ylabel('p')
             ax[i].set_aspect('equal', adjustable='box')
         plt.tight_layout()
-        plt.show()
+        if save_path:
+            plt.savefig(save_path)
+        if show_plot:
+            plt.show()
 
     def animate_wigner(self, systems=None, number_of_frames=20, fps=100, save=True, writer='Pillow'):
         """
